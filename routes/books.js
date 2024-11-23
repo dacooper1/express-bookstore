@@ -1,5 +1,9 @@
 const express = require("express");
 const Book = require("../models/book");
+const jsonschema = require("jsonschema")
+const bookSchemaNew = require("../schemas/bookSchemaNew.json")
+const bookSchemaUpdate= require("../schemas/bookSchemaUpdate.json")
+const ExpressError = require("../expressError")
 
 const router = new express.Router();
 
@@ -30,6 +34,11 @@ router.get("/:id", async function (req, res, next) {
 
 router.post("/", async function (req, res, next) {
   try {
+    const result = jsonschema.validate(req.body, bookSchemaNew)
+    if (!result.valid) {
+      let listOfErrors = result.errors.map(e => e.stack)
+      return next(listOfErrors)
+    } 
     const book = await Book.create(req.body);
     return res.status(201).json({ book });
   } catch (err) {
@@ -41,6 +50,15 @@ router.post("/", async function (req, res, next) {
 
 router.put("/:isbn", async function (req, res, next) {
   try {
+    if ("isbn" in req.body) {
+      throw new ExpressError("isbn not allowed to modify.", 400)
+    }
+    const result = jsonschema.validate(req.body, bookSchemaUpdate)
+    if (!result.valid) {
+      let listOfErrors = result.errors.map(e => e.stack)
+      throw new ExpressError(listOfErrors, 400)
+    }
+    
     const book = await Book.update(req.params.isbn, req.body);
     return res.json({ book });
   } catch (err) {
@@ -53,6 +71,7 @@ router.put("/:isbn", async function (req, res, next) {
 router.delete("/:isbn", async function (req, res, next) {
   try {
     await Book.remove(req.params.isbn);
+    
     return res.json({ message: "Book deleted" });
   } catch (err) {
     return next(err);
